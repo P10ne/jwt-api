@@ -4,6 +4,8 @@ import { sendJsonResponse, sendErrorResponse } from '../../utils/utils';
 import { AuthService, TokenService, UsersService } from '../../services';
 import { IPublicUser, IUser } from '../../models/IUser';
 import { TExpressRequest, TExpressResponse } from '../../models';
+import { MessagesToken } from '../../InjectionTokens';
+import { TMessages } from '../../MESSAGES';
 
 type TLoginRequestBody = {
     email: string;
@@ -33,7 +35,8 @@ class AuthController {
     constructor(
         @Inject(AuthService) private authService: AuthService,
         @Inject(UsersService) private usersService: UsersService,
-        @Inject(TokenService) private tokenService: TokenService
+        @Inject(TokenService) private tokenService: TokenService,
+        @Inject(MessagesToken) private messages: TMessages
     ) {}
 
     @Post('/login')
@@ -41,18 +44,19 @@ class AuthController {
         const { email, password, fingerPrint } = req.body;
         const user = await this.authService.authenticate(email, password);
         if (!user) {
-            sendErrorResponse(res, 403, 'Неверный логин или пароль');
+            sendErrorResponse(res, 403, this.messages.AUTH.INPUT_IS_INCORRECT);
             return;
         }
-        const accessToken = this.tokenService.generateAccessToken({ userId: user.id });
+        const publicUser = user.getPublicUser();
+        const accessToken = this.tokenService.generateAccessToken({ user: publicUser });
         const refreshToken = this.tokenService.generateRefreshToken({
-            userId: user.id,
+            user: publicUser,
             fingerPrint: fingerPrint
         });
         sendJsonResponse(res, 200, {
             accessToken,
             refreshToken,
-            user: user.getPublicUser()
+            user: publicUser
         });
     }
 
@@ -65,15 +69,16 @@ class AuthController {
     async refreshToken(req: TExpressRequest<TRefreshRequestBody>, res: TExpressResponse<TRefreshResponseBody>) {
         const {refreshToken, fingerPrint} = req.body;
         try {
-            const { userId } = await this.tokenService.verifyRefreshToken(refreshToken, fingerPrint);
-            const newAccessToken = this.tokenService.generateAccessToken({ userId });
-            const newRefreshToken = this.tokenService.generateRefreshToken({ userId, fingerPrint });
+            const { user } = await this.tokenService.verifyRefreshToken(refreshToken, fingerPrint);
+            const newAccessToken = this.tokenService.generateAccessToken({ user });
+            const newRefreshToken = this.tokenService.generateRefreshToken({ user, fingerPrint });
             sendJsonResponse(res, 200,
             {
                 accessToken: newAccessToken,
                 refreshToken: newRefreshToken
             });
         } catch (e) {
+            console.log('error message: ', e.message);
             sendErrorResponse(res, 401, e.message);
         }
     }
@@ -82,14 +87,14 @@ class AuthController {
     async reg(req: TExpressRequest<TRegRequestBody>, res: TExpressResponse<TRegResponseBody>) {
         const { email, password } = req.body;
         if (!email || !password) {
-            sendErrorResponse(res, 400, 'Email or password are empty');
+            sendErrorResponse(res, 400, this.messages.AUTH.INPUT_IS_INCORRECT);
             return;
         }
         try {
             const user = await this.usersService.add(req.body);
             sendJsonResponse(res, 200, user.getPublicUser());
         } catch {
-            sendErrorResponse(res, 400, 'Error');
+            sendErrorResponse(res, 400, this.messages.COMMON.UNEXPECTED_ERROR);
         }
     }
 }

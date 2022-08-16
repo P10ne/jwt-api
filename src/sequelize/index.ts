@@ -4,7 +4,7 @@ import { Container } from '@decorators/di';
 import { TConfig } from '../CONFIG';
 import { ConfigToken, UserModelToken } from '../InjectionTokens';
 
-const initSequelize = () => {
+const initSequelize = async () => {
     const CONFIG = Container.get<TConfig>(ConfigToken);
     const UserModel = Container.get<typeof User>(UserModelToken);
     const pgSequelize = new Sequelize({
@@ -12,9 +12,12 @@ const initSequelize = () => {
         dialect: "sqlite",
         host: "localhost",
         models: [UserModel],
+        logging: false,
         ...CONFIG.sequelize
     });
-    pgSequelize.sync();
+    await pgSequelize.sync({
+        ...CONFIG.sequelize.syncOptions
+    });
 }
 
 export default initSequelize;

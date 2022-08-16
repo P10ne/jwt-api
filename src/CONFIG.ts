@@ -9,7 +9,8 @@ const CONFIG = {
         }
     },
     sequelize: {
-        storage: 'src/db/db.db'
+        storage: 'src/db/db.db',
+        syncOptions: {}
     }
 };
 
